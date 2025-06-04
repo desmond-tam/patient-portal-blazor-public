@@ -1,0 +1,130 @@
+﻿@page "/booking-form"
+@using PatientPortalApp.Services
+@using PatientPortalApp.Data
+@using PatientPortalApp.Models
+@using BlazorBootstrap
+@inject NavigationManager navigationManager
+
+@inject IBookingService bookingService
+@inject IPatientService patientService
+<h3>Booking Form</h3>
+<EditForm EditContext="context" OnValidSubmit="SubmitForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="mb-3 mt-3">
+        <label for="user">Select Patient:</label>
+        <AutoComplete Class="form-control" @bind-Value="selectedFullName"
+                      TItem="PatientModel"
+                      DataProvider="PatientDataProvider"
+                      PropertyName="FullName"
+                      Placeholder="Search a patient..."
+                      OnChanged="(PatientModel user) => OnPatientAutoCompleteChanged(user)" required />
+    </div>
+        <div class="mb-3 mt-3">
+        <label for="user">Select Location:</label>
+        <AutoComplete Class="form-control" @bind-Value="selectedLocation"
+                      TItem="LocationModel"
+                      DataProvider="LocationDataProvider"
+                      PropertyName="Name"
+                      Placeholder="Search the Location..."
+                      OnChanged="(LocationModel location) => OnLocationAutoCompleteChanged(location)" required />
+    </div>
+   <div class="mb-3 mt-3">
+        <label for="user">Select Doctor:</label>
+        <AutoComplete Class="form-control" @bind-Value="selectedDoctor"
+                      TItem="DoctorModel"
+                      DataProvider="DoctorDataProvider"
+                      PropertyName="FullName"
+                      Placeholder="Search a Doctor..."
+                      OnChanged="(DoctorModel doctor) => OnDoctorAutoCompleteChanged(doctor)" required />
+    </div>
+@*     <div class="mb-3 mt-3">
+        <label for="provider-number">Provider Number:</label>
+        <InputText class="form-control" id="provider-number" name="provider-number" @bind-Value="model!.ProviderNumber" required />
+    </div> *@
+
+    <Button Type="ButtonType.Submit" Color="ButtonColor.Primary" Loading="loading">Submit</Button>
+    <Button Color="ButtonColor.Secondary" @onclick="Redirect">Close</Button>
+</EditForm>
+@code {
+    public BookingInputModel model = null!;
+    public EditContext context = null!;
+    public bool loading { get; set; } = false;
+    private string selectedFullName = string.Empty;
+    private string selectedLocation = string.Empty;
+    private string selectedDoctor = string.Empty;
+    public IEnumerable<DoctorModel> doctors = null!;
+    public IEnumerable<PatientModel> patients = null!;
+    public IEnumerable<LocationModel> locations = null!;
+
+    protected override void OnInitialized()
+    {
+        model = new BookingInputModel();
+        context = new EditContext(model);
+    }
+
+
+    private async void SubmitForm()
+    {
+        loading = true;
+        await bookingService.SaveBooking(model);
+        navigationManager.NavigateTo("/booking-grid");
+    }
+
+    private void Redirect()
+    {
+        navigationManager.NavigateTo("/booking-grid");
+    }
+
+    private async Task<AutoCompleteDataProviderResult<PatientModel>> PatientDataProvider(AutoCompleteDataProviderRequest<PatientModel> request)
+    {
+        if (patients is null) // pull customers only one time for client-side autocomplete
+            patients = await patientService.GetListForBooking();
+
+        return await Task.FromResult(request.ApplyTo(patients.OrderBy(x => x.FullName)));
+    }
+
+    private void OnPatientAutoCompleteChanged(PatientModel patient)
+    {
+        if (patient != null)
+        {
+            model.PatientId = patient.PatientId;
+        }
+
+    }
+
+
+    private async Task<AutoCompleteDataProviderResult<LocationModel>> LocationDataProvider(AutoCompleteDataProviderRequest<LocationModel> request)
+    {
+        if (locations is null) // pull customers only one time for client-side autocomplete
+            locations = await bookingService.GetLocationsForBooking();
+
+        return await Task.FromResult(request.ApplyTo(locations.OrderBy(x => x.Name)));
+    }
+
+    private void OnLocationAutoCompleteChanged(LocationModel location)
+    {
+        if (locations != null)
+        {
+            model.LocationId = location.LocationId;
+        }
+
+    }
+
+    private async Task<AutoCompleteDataProviderResult<DoctorModel>> DoctorDataProvider(AutoCompleteDataProviderRequest<DoctorModel> request)
+    {
+        if (doctors is null) // pull customers only one time for client-side autocomplete
+            doctors = await bookingService.GetDoctorsForBooking(model.LocationId);
+
+        return await Task.FromResult(request.ApplyTo(doctors.OrderBy(x => x.FullName)));
+    }
+
+    private void OnDoctorAutoCompleteChanged(DoctorModel doctor)
+    {
+        if (doctors != null)
+        {
+            model.DoctorId = doctor.DoctorId;
+        }
+
+    }
+}

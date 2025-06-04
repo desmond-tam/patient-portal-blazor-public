@@ -1,0 +1,53 @@
+﻿@page "/location-form"
+@using PatientPortalApp.Services
+@using PatientPortalApp.Data
+@using PatientPortalApp.Models
+@using BlazorBootstrap
+@inject NavigationManager navigationManager
+
+@inject ILocationService locationService
+<h3>LocationForm</h3>
+<EditForm EditContext="context" OnValidSubmit="SubmitForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="mb-3 mt-3">
+        <label for="location-name">Name:</label>
+        <InputText class="form-control" id="location-name" name="location-name" @bind-Value="model!.Name" required />
+    </div>
+    <Button Type="ButtonType.Submit" Color="ButtonColor.Primary" Loading="loading">Submit</Button>
+    <Button Color="ButtonColor.Secondary" @onclick="Redirect">Close</Button>
+</EditForm>
+@* <form method="post">
+    <div class="mb-3 mt-3">
+        <label for="location-name">Name:</label>
+        <InputText class="form-control" id="location-name" name="location-name" @bind-Value="Model!.Name" required />
+    </div>
+
+</form> *@
+
+@code {
+    public LocationInputModel? model =null!;
+    public EditContext context = null!;
+    public bool loading { get; set; } = false;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        model = new LocationInputModel();
+        context = new EditContext(model);
+    }
+
+
+    private async void SubmitForm()
+    {
+        loading = true;
+        await locationService.SaveLocation(model);
+        navigationManager.NavigateTo("/location-grid");
+    }
+
+    private void Redirect()
+    {
+        navigationManager.NavigateTo("/location-grid");
+    }
+
+}

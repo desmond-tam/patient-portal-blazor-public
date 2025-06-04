@@ -1,0 +1,78 @@
+﻿@page "/patient-form"
+@using PatientPortalApp.Services
+@using PatientPortalApp.Data
+@using PatientPortalApp.Models
+@using BlazorBootstrap
+@inject NavigationManager navigationManager
+
+@inject IPatientService patientService
+@inject IUserService userService
+
+<h3>Patient Form</h3>
+
+<EditForm EditContext="context" OnValidSubmit="SubmitForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="mb-3 mt-3">
+        <label for="user">Select User:</label>
+        <AutoComplete Class="form-control" @bind-Value="fullName"
+                      TItem="UserModel"
+                      DataProvider="UserDataProvider"
+                      PropertyName="FullName"
+                      Placeholder="Search a user..."
+                      OnChanged="(UserModel user) => OnAutoCompleteChanged(user)" required />
+
+    </div>
+    <div class="mb-3 mt-3">
+        <label for="medicare-number">Medicare Number:</label>
+        <InputText class="form-control" id="medicare-number" name="medicare-number" @bind-Value="model!.MedicareNumber" />
+    </div>
+
+    <Button Type="ButtonType.Submit" Color="ButtonColor.Primary" Loading="loading">Submit</Button>
+    <Button Color="ButtonColor.Secondary" @onclick="Redirect">Close</Button>
+</EditForm>
+@code {
+    public PatientInputModel model = null!;
+    public EditContext context = null!;
+    public bool loading { get; set; } = false;
+    private string fullName = string.Empty;
+    public IEnumerable<UserModel> users = null!;
+
+    protected override void OnInitialized()
+    {
+        model = new PatientInputModel();
+        context = new EditContext(model);
+    }
+
+
+    private async void SubmitForm()
+    {
+        loading = true;
+        await patientService.Save(model);
+        navigationManager.NavigateTo("/patient-grid");
+    }
+
+    private void Redirect()
+    {
+        navigationManager.NavigateTo("/patient-grid");
+    }
+
+    private async Task<AutoCompleteDataProviderResult<UserModel>> UserDataProvider(AutoCompleteDataProviderRequest<UserModel> request)
+    {
+        if (users is null) // pull customers only one time for client-side autocomplete
+            users = await userService.GetAllForPatient();
+
+        return await Task.FromResult(request.ApplyTo(users.OrderBy(x => x.FullName)));
+    }
+
+    private void OnAutoCompleteChanged(UserModel user)
+    {
+        if (user != null)
+        {
+            model.UserId = user.UserId;
+        }
+
+    }
+
+}
+

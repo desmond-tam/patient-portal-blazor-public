@@ -1,0 +1,199 @@
+﻿@page "/slot-form"
+@using PatientPortalApp.Services
+@using PatientPortalApp.Data
+@using PatientPortalApp.Models
+@using BlazorBootstrap
+@inject NavigationManager navigationManager
+
+@inject ISlotService slotService
+@inject ILocationService locationService
+@inject IDoctorService doctorService
+
+<h3>Doctor Consultation Slot Form</h3>
+<EditForm EditContext="context" OnValidSubmit="SubmitForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3 mt-3">
+        <label for="user">Select Location:</label>
+        <AutoComplete Class="form-control" @bind-Value="selectedLocation"
+                      TItem="LocationModel"
+                      DataProvider="LocationDataProvider"
+                      PropertyName="Name"
+                      Placeholder="Search the Location..."
+                      OnChanged="(LocationModel location) => OnLocationAutoCompleteChanged(location)" required />
+    </div>
+    <div class="mb-3 mt-3">
+        <label for="user">Select Doctor:</label>
+        <AutoComplete Class="form-control" @bind-Value="selectedDoctor"
+                      TItem="DoctorModel"
+                      DataProvider="DoctorDataProvider"
+                      PropertyName="FullName"
+                      Placeholder="Search the Doctor..."
+                      OnChanged="(DoctorModel doctor) => OnDoctorAutoCompleteChanged(doctor)" required />
+    </div>
+    <div class="mb-3 mt-3">
+        <label for="times">Select Time Range</label>
+        <div class="form-control">
+            @foreach (var item in model.TimeRange.Where(x => x.Selected))
+            {
+                <div class="tag-div">
+                    <span>@item.Line</span>
+                    <a @onclick=@((e)=> OptionDeleteEvent(@item,e))>x</a>
+                </div>
+            }
+        </div>
+        <div class="form-control">
+            <select class="tag-options-holder" multiple>
+                @foreach (var item in model.TimeRange.Where(x => !x.Selected))
+                {
+                    <option value="@item" @onclick=@((e) => OptionClickEvent(@item,e))><span>@item.StartTime</span>-<span>@item.EndTime</span></option>
+                }
+            </select>
+        </div>
+    </div>
+    <div class="mb-3 mt-3">
+        <label for="weekdays">Select Weekday</label>
+        <div class="form-control">
+            @foreach (var item in model.Repeat.Where(x => x.Selected))
+            {
+                <div class="tag-div">
+                    <span>@item.WeekName</span>
+                    <a @onclick=@((e)=> WeekOptionDeleteEvent(@item,e))>x</a>
+                </div>
+            }
+        </div>
+        <div class="form-control">
+            <select class="tag-options-holder" multiple>
+                @foreach (var item in model.Repeat.Where(x => !x.Selected))
+                {
+                    <option value="@item" @onclick=@((e) => WeekOptionClickEvent(@item,e))><span>@item.WeekName</span></option>
+                }
+            </select>
+        </div>
+    </div>
+    <Button Type="ButtonType.Submit" Color="ButtonColor.Primary" Loading="loading">Submit</Button>
+    <Button Color="ButtonColor.Secondary" @onclick="Redirect">Close</Button>
+</EditForm>
+
+
+@code {
+    public SlotInputModel model = null!;
+    public EditContext context = null!;
+    public IEnumerable<LocationModel> locations = null!;
+    private string selectedLocation = string.Empty;
+    public IEnumerable<DoctorModel> doctors = null!;
+    private string selectedDoctor = string.Empty;
+    public bool loading { get; set; } = false;
+    //private List<TimeItemInputModel> times = new List<TimeItemInputModel>();
+    //private List<WeekItemInputModel> weekdays = new List<WeekItemInputModel>();
+    private string[] WeekdaysRange = new string[] { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
+
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        model = new SlotInputModel();
+        context = new EditContext(model);
+
+        int year = DateTime.Now.Year;
+        int month = DateTime.Now.Month;
+        int day = DateTime.Now.Day;
+        var starttime = new DateTime(year,month,day,7,0,0);
+        var stime = starttime;
+        var etime = starttime.AddMinutes(30);
+        for (var i=0;i<28;i++)
+        {
+            model?.TimeRange.Add(new TimeItemInputModel()
+                {
+                    Selected = false,
+                    StartTime = stime.ToString("HH:mm"),
+                    EndTime = etime.ToString("HH:mm")
+                });
+            stime = etime;
+            etime = stime.AddMinutes(30);
+        }
+
+        foreach (string name in WeekdaysRange)
+        {
+            model?.Repeat.Add(new WeekItemInputModel()
+            {
+                Selected = false,
+                WeekName = name
+            });
+        }
+    }
+
+    public void SelectAll(MouseEventArgs evt)
+    {
+        model?.Repeat.ForEach(x =>
+        {
+            x.Selected = true;
+        });
+    }
+
+    public void OptionDeleteEvent(TimeItemInputModel values,MouseEventArgs evt) {
+        values.Selected = false;
+    }
+
+    public void OptionClickEvent(TimeItemInputModel values, MouseEventArgs evnt)
+    {
+        values.Selected = true;
+    }
+    public void WeekOptionDeleteEvent(WeekItemInputModel values, MouseEventArgs evt)
+    {
+        values.Selected = false;
+    }
+
+    public void WeekOptionClickEvent(WeekItemInputModel values, MouseEventArgs evnt)
+    {
+        values.Selected = true;
+    }
+
+    private async void SubmitForm()
+    {
+        loading = true;
+        await slotService.SaveSlot(model);
+        navigationManager.NavigateTo("/slot-grid");
+    }
+
+    private void Redirect()
+    {
+        navigationManager.NavigateTo("/slot-grid");
+    }
+
+    private async Task<AutoCompleteDataProviderResult<LocationModel>> LocationDataProvider(AutoCompleteDataProviderRequest<LocationModel> request)
+    {
+        if (locations is null) // pull customers only one time for client-side autocomplete
+            locations = await locationService.GetAll();
+
+        return await Task.FromResult(request.ApplyTo(locations.OrderBy(x => x.Name)));
+    }
+
+    private void OnLocationAutoCompleteChanged(LocationModel location)
+    {
+        if (location != null)
+        {
+            model.LocationId = location.LocationId;
+        }
+
+    }
+
+    private async Task<AutoCompleteDataProviderResult<DoctorModel>> DoctorDataProvider(AutoCompleteDataProviderRequest<DoctorModel> request)
+    {
+        if (doctors is null) // pull customers only one time for client-side autocomplete
+            doctors = await doctorService.GetAll();
+
+        return await Task.FromResult(request.ApplyTo(doctors.OrderBy(x => x.FullName)));
+    }
+
+    private void OnDoctorAutoCompleteChanged(DoctorModel doctor)
+    {
+        if (doctor != null)
+        {
+            model.DoctorId = doctor.DoctorId;
+        }
+
+    }
+
+}

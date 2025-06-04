@@ -1,0 +1,194 @@
+﻿@page "/location-grid"
+@using PatientPortalApp.Services
+@using PatientPortalApp.Data
+@using PatientPortalApp.Models
+@using System.ComponentModel.DataAnnotations
+
+@inherits LayoutComponentBase
+@inject ILocationService locationService
+
+<h3>Locations</h3>
+@if (list == null)
+{
+    <Spinner />
+}
+else
+{
+    <a class="expand-holder" style="cursor:pointer" @onclick="@(() => ToggleSearch())">@(@expand ? "Expand >" : "Collapse <")</a>
+    <Collapse @ref="search" Class="search-container">
+        <Card>
+            <CardBody>
+                <EditForm EditContext="@editContext" OnValidSubmit="HandleOnValidSubmit">
+                    <DataAnnotationsValidator />
+
+                    <div class="form-group row mb-3">
+                        <label class="col-md-2 col-form-label">Name: </label>
+                        <div class="col-md-10">
+                            <InputText class="form-control" @bind-Value="searchForm.Name" Placeholder="Enter Name" />
+                        </div>
+                    </div>
+
+                    <div class="form-group row mb-3">
+                        <label class="col-md-2 col-form-label">Enabled: </label>
+                        <div class="col-md-10">
+                            <InputSelect class="form-select mb-3" @bind-Value="searchForm.IsEnabled">
+                                <option value="">All</option>
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </InputSelect>
+
+
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-12 button-holder">
+                            <Button Type="ButtonType.Submit" Color="ButtonColor.Success" Class="me-2">Search</Button>
+                            <Button Type="ButtonType.Button" Color="ButtonColor.Secondary" Class="me-2" @onclick="ResetForm">Reset</Button>
+                        </div>
+                    </div>
+                </EditForm>
+            </CardBody>
+        </Card>
+    </Collapse>
+    <div class="grid-button-container">
+        <a href="location-form" >
+            <Icon Name="IconName.PlusSquare" />
+        </a>
+    </div>
+   
+@*     <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Identifier</th>
+                <th>Location Name</th>
+                <th>Enable</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in list)
+            {
+                <tr>
+                    <td>@item.LocationIdentifier</td>
+                    <td>@item.Name</td>
+                    <td><Switch @bind-Value="item.IsEnabled" @onclick="@(() => SwitchChange(item.LocationId))" /></td>
+                    <td><a style="cursor:pointer" @onclick="@(() => OnShow(item.LocationId))"><Icon Name="IconName.Trash" /></a></td>
+                </tr>
+            }
+        </tbody>
+    </table> *@
+
+    <Grid @ref="locationDataGridRef"
+      TItem="LocationModel"
+      Class="table table-hover table-bordered table-striped"
+          DataProvider="LocationDataProvider"
+        AllowPaging="true"
+        PageSize="10"
+      AllowSorting="true"
+      Responsive="true"
+       >
+
+
+        <GridColumn TItem="LocationModel" HeaderText="Identifier" SortString="LocationIdentifier" SortKeySelector="item => item.LocationIdentifier" PropertyName="LocationIdentifier">
+            @context.LocationIdentifier
+        </GridColumn>
+        <GridColumn TItem="LocationModel" HeaderText="Location Name" SortString="Name" SortKeySelector="item => item.Name" PropertyName="Name">
+        @context.Name
+        </GridColumn>
+        <GridColumn TItem="LocationModel" HeaderText="Enabled" SortString="IsEnabled" SortKeySelector="item => item.IsEnabled" PropertyName="IsEnabled">
+            <HeaderContent>
+               Enabled
+            </HeaderContent>
+            <ChildContent>
+                <Switch @bind-Value="@context.IsEnabled" @onclick="@(() => SwitchChange(context.LocationId))" />
+            </ChildContent>
+
+        </GridColumn>
+
+</Grid>
+ 
+}
+
+<Modal @ref="modal" Title="Confirm to delete">
+    <BodyTemplate>
+        @rec?.Name
+    </BodyTemplate>
+    <FooterTemplate>
+        <Button Color="ButtonColor.Secondary" @onclick="OnClose">Cancel</Button>
+        <Button Color="ButtonColor.Primary" @onclick="OnDelete">OK</Button>
+    </FooterTemplate>
+</Modal>
+
+@code {
+    private LocationSearchModel searchForm = new();
+    private EditContext? editContext;
+    private IEnumerable<LocationModel>? list = null;
+    private Modal modal = default!;
+    private LocationModel? rec;
+    private Collapse search = default!;
+    private bool expand = true;
+    private Grid<LocationModel> locationDataGridRef = default!;
+    private int pagesize = 10;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        editContext = new EditContext(searchForm);
+        list = await locationService.GetPage(new LocationSearchModel(),null!,1, pagesize);
+    }
+
+
+    private async Task ToggleSearch()
+    {
+        await search.ToggleAsync();
+        expand = !expand;
+    }
+
+    private async Task SwitchChange(int id)
+    {
+        await locationService.SwitchLocation(id);
+    }
+
+    public async Task HandleOnValidSubmit()
+    {
+        await locationDataGridRef.RefreshDataAsync();
+    }
+
+    private async Task OnDelete()
+    {
+        await locationService.SwitchLocation(rec?.LocationId ?? -1);
+        list = await locationService.GetAll();
+        await modal.HideAsync();
+    }
+
+    private async Task OnShow(int id)
+    {
+        rec = await locationService.GetItem(id);
+        await modal.ShowAsync();
+    }
+
+    private async Task OnClose()
+    {
+        await modal.HideAsync();
+    }
+
+    private void ResetForm()
+    {
+        searchForm = new();
+        editContext = new EditContext(searchForm);
+
+    }
+
+    private async Task<GridDataProviderResult<LocationModel>> LocationDataProvider(GridDataProviderRequest<LocationModel> request)
+    {
+        LocationSearchModel model = new LocationSearchModel()
+            {
+                Name = searchForm.Name?.ToLower(),
+                IsEnabled = searchForm.IsEnabled
+            };
+        list = await locationService.GetPage(model,request.Sorting, request.PageNumber, request.PageSize);
+        int total = await locationService.GetTotalRecords(model);
+        return (new GridDataProviderResult<LocationModel> { Data = list, TotalCount = total });
+    }
+
+}

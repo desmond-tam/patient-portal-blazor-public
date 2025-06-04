@@ -1,0 +1,144 @@
+﻿@page "/slot-grid"
+@using PatientPortalApp.Services
+@using PatientPortalApp.Data
+@using PatientPortalApp.Models
+@using System.ComponentModel.DataAnnotations
+
+@inherits LayoutComponentBase
+@inject ISlotService slotService
+
+
+<h3>Daily Consultation Time</h3>
+@if (list == null)
+{
+    <Spinner />
+}
+else
+{
+    <a class="expand-holder" style="cursor:pointer" @onclick="@(() => ToggleSearch())">@(@expand ? "Expand >" : "Collapse <")</a>
+    <Collapse @ref="search" Class="search-container">
+        <Card>
+            <CardBody>
+                <EditForm EditContext="@editContext" OnValidSubmit="HandleOnValidSubmit">
+                    <DataAnnotationsValidator />
+
+                    <div class="form-group row mb-3">
+                        <label class="col-md-2 col-form-label">First Name: </label>
+                        <div class="col-md-10">
+                            <InputText class="form-control" @bind-Value="searchForm.DoctorFirstName" Placeholder="Enter First Name" />
+                        </div>
+                    </div>
+
+                    <div class="form-group row mb-3">
+                        <label class="col-md-2 col-form-label">Last Name: </label>
+                        <div class="col-md-10">
+                            <InputText class="form-control" @bind-Value="searchForm.DoctorLastName" Placeholder="Enter Last Name" />
+                        </div>
+                    </div>
+
+                    <div class="form-group row mb-3">
+                        <label class="col-md-2 col-form-label">Location Name: </label>
+                        <div class="col-md-10">
+                            <InputText class="form-control" @bind-Value="searchForm.LocationName" Placeholder="Enter Location Name" />
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-12 button-holder">
+                            <Button Type="ButtonType.Submit" Color="ButtonColor.Success" Class="me-2">Search</Button>
+                            <Button Type="ButtonType.Button" Color="ButtonColor.Secondary" Class="me-2" @onclick="ResetForm">Reset</Button>
+                        </div>
+                    </div>
+                </EditForm>
+            </CardBody>
+        </Card>
+    </Collapse>
+    <div class="grid-button-container">
+        <a href="slot-form">
+            <Icon Name="IconName.PlusSquare" />
+        </a>
+    </div>
+
+    <Grid @ref="slotDataGridRef"
+          TItem="SlotModel"
+          Class="table table-hover table-bordered table-striped"
+          DataProvider="GridDataProvider"
+          AllowPaging="true"
+          PageSize="10"
+          AllowSorting="true"
+          Responsive="true">
+
+        @*
+    <GridColumn TItem="DoctorModel" HeaderText="Identifier" SortString="LocationIdentifier" SortKeySelector="item => item.UserIdentifier" PropertyName="UserIdentifier">
+    @context.UserIdentifier
+    </GridColumn> *@
+        <GridColumn TItem="SlotModel" HeaderText="Location" SortString="LocationName" SortKeySelector="item => item.LocationName" PropertyName="FirstName">
+            @context.LocationName
+        </GridColumn>
+        <GridColumn TItem="SlotModel" HeaderText="Doctor Name" SortString="DoctorName" SortKeySelector="item => item.DoctorName" PropertyName="DoctorName">
+            @context.DoctorName
+        </GridColumn>
+        <GridColumn TItem="SlotModel" HeaderText="Times" SortString="Times" SortKeySelector="item => item.Times" PropertyName="Times">
+        @foreach (var item in @context.TimeRange)
+        {
+           <div class="time-container"><span>@item.StartTime</span><span>-</span><span>@item.EndTime</span></div>
+        }
+        </GridColumn>
+        <GridColumn TItem="SlotModel" HeaderText="Weekdays" SortString="Weekdays" SortKeySelector="item => item.Weekdays" PropertyName="Weekdays">
+        @foreach (var item in @context.Repeat)
+        {
+            <div class="weekday-container"><span>@item.WeekName</span></div>
+        }
+        </GridColumn>
+    </Grid>
+
+}
+
+@code {
+    private IEnumerable<SlotModel>? list = null;
+    private BookingSearchModel searchForm = new();
+    private SlotModel? rec;
+    private Grid<SlotModel> slotDataGridRef = default!;
+    private int pagesize = 10;
+
+    private EditContext? editContext;
+    private Collapse search = default!;
+    private bool expand = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        editContext = new EditContext(searchForm);
+        list = await slotService.GetPage(new SlotSearchModel(), null!, 1, pagesize);
+    }
+
+    private async Task ToggleSearch()
+    {
+        await search.ToggleAsync();
+        expand = !expand;
+    }
+
+    private void ResetForm()
+    {
+        searchForm = new();
+        editContext = new EditContext(searchForm);
+
+    }
+
+    public async Task HandleOnValidSubmit()
+    {
+        await slotDataGridRef.RefreshDataAsync();
+    }
+
+    private async Task<GridDataProviderResult<SlotModel>> GridDataProvider(GridDataProviderRequest<SlotModel> request)
+    {
+        SlotSearchModel model = new SlotSearchModel()
+            {
+                DoctorFirstName = searchForm.DoctorFirstName?.ToLower(),
+                DoctorLastName = searchForm.DoctorLastName?.ToLower(),
+                LocationName = searchForm.LocationName?.ToLower()
+            };
+        list = await slotService.GetPage(model, request.Sorting, request.PageNumber, request.PageSize);
+        int total = await slotService.GetTotalRecords(model);
+        return (new GridDataProviderResult<SlotModel> { Data = list, TotalCount = total });
+    }
+}

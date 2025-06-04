@@ -1,0 +1,161 @@
+﻿@page "/doctor-grid"
+@using PatientPortalApp.Services
+@using PatientPortalApp.Data
+@using PatientPortalApp.Models
+@using System.ComponentModel.DataAnnotations
+
+@inherits LayoutComponentBase
+@inject IDoctorService doctorService
+
+<h3>Doctors</h3>
+@if (list == null)
+{
+    <Spinner />
+}
+else
+{
+    <a class="expand-holder" style="cursor:pointer" @onclick="@(() => ToggleSearch())">@(@expand ? "Expand >" : "Collapse <")</a>
+    <Collapse @ref="search" Class="search-container">
+        <Card>
+            <CardBody>
+                <EditForm EditContext="@editContext" OnValidSubmit="HandleOnValidSubmit">
+                    <DataAnnotationsValidator />
+
+                    <div class="form-group row mb-3">
+                        <label class="col-md-2 col-form-label">First Name: </label>
+                        <div class="col-md-10">
+                            <InputText class="form-control" @bind-Value="searchForm.FirstName" Placeholder="Enter First Name" />
+                        </div>
+                    </div>
+
+                    <div class="form-group row mb-3">
+                        <label class="col-md-2 col-form-label">Last Name: </label>
+                        <div class="col-md-10">
+                            <InputText class="form-control" @bind-Value="searchForm.LastName" Placeholder="Enter Last Name" />
+                        </div>
+                    </div>
+
+                    <div class="form-group row mb-3">
+                        <label class="col-md-2 col-form-label">Active: </label>
+                        <div class="col-md-10">
+                            <InputSelect class="form-select mb-3" @bind-Value="searchForm.IsActive">
+                                <option value="">All</option>
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </InputSelect>
+
+
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-12 button-holder">
+                            <Button Type="ButtonType.Submit" Color="ButtonColor.Success" Class="me-2">Search</Button>
+                            <Button Type="ButtonType.Button" Color="ButtonColor.Secondary" Class="me-2" @onclick="ResetForm">Reset</Button>
+                        </div>
+                    </div>
+                </EditForm>
+            </CardBody>
+        </Card>
+    </Collapse>
+    <div class="grid-button-container">
+        <a href="doctor-form">
+            <Icon Name="IconName.PlusSquare" />
+        </a>
+    </div>
+
+    <Grid @ref="userDataGridRef"
+          TItem="DoctorModel"
+          Class="table table-hover table-bordered table-striped"
+          DataProvider="GridDataProvider"
+          AllowPaging="true"
+          PageSize="10"
+          AllowSorting="true"
+          Responsive="true">
+
+@* 
+        <GridColumn TItem="DoctorModel" HeaderText="Identifier" SortString="LocationIdentifier" SortKeySelector="item => item.UserIdentifier" PropertyName="UserIdentifier">
+            @context.UserIdentifier
+        </GridColumn> *@
+        <GridColumn TItem="DoctorModel" HeaderText="First Name" SortString="FirstName" SortKeySelector="item => item.FirstName" PropertyName="FirstName">
+            @context.FirstName
+        </GridColumn>
+        <GridColumn TItem="DoctorModel" HeaderText="Last Name" SortString="LastName" SortKeySelector="item => item.LastName" PropertyName="LastName">
+            @context.LastName
+        </GridColumn>
+        <GridColumn TItem="DoctorModel" HeaderText="Provider Number" SortString="ProviderNumber" SortKeySelector="item => item.ProviderNumber" PropertyName="ProviderNumber">
+            @context.ProviderNumber
+        </GridColumn>
+        <GridColumn TItem="DoctorModel" HeaderText="Mobile" SortString="MobileNumber" SortKeySelector="item => item.MobileNumber" PropertyName="MobileNumber">
+            @context.MobileNumber
+        </GridColumn>
+        <GridColumn TItem="DoctorModel" HeaderText="Email" SortString="EmailAddress" SortKeySelector="item => item.EmailAddress" PropertyName="EmailAddress">
+            @context.EmailAddress
+        </GridColumn>
+        <GridColumn TItem="DoctorModel" HeaderText="Enabled" SortString="IsActive" SortKeySelector="item => item.IsActive" PropertyName="IsActive">
+            <HeaderContent>
+                Active
+            </HeaderContent>
+            <ChildContent>
+                <Switch @bind-Value="@context.IsActive" @onclick="@(() => Switch(context.DoctorId))" />
+            </ChildContent>
+
+        </GridColumn>
+
+    </Grid>
+
+}
+
+@code {
+    private DoctorSearchModel searchForm = new();
+    private EditContext? editContext;
+    private IEnumerable<DoctorModel>? list = null;
+    private Modal modal = default!;
+    private DoctorModel? rec;
+    private Collapse search = default!;
+    private bool expand = true;
+    private Grid<DoctorModel> userDataGridRef = default!;
+    private int pagesize = 10;
+
+    protected override async Task OnInitializedAsync()
+    {
+        editContext = new EditContext(searchForm);
+        list = await doctorService.GetPage(new DoctorSearchModel(), null!, 1, pagesize);
+    }
+
+    private async Task ToggleSearch()
+    {
+        await search.ToggleAsync();
+        expand = !expand;
+    }
+
+    private void ResetForm()
+    {
+        searchForm = new();
+        editContext = new EditContext(searchForm);
+
+    }
+
+    private async Task Switch(int id)
+    {
+        await doctorService.Switch(id);
+    }
+
+    public async Task HandleOnValidSubmit()
+    {
+        await userDataGridRef.RefreshDataAsync();
+    }
+
+    private async Task<GridDataProviderResult<DoctorModel>> GridDataProvider(GridDataProviderRequest<DoctorModel> request)
+    {
+        DoctorSearchModel model = new DoctorSearchModel()
+            {
+                FirstName = searchForm.FirstName?.ToLower(),
+                LastName = searchForm.LastName?.ToLower(),
+                IsActive = searchForm.IsActive
+            };
+        list = await doctorService.GetPage(model, request.Sorting, request.PageNumber, request.PageSize);
+        int total = await doctorService.GetTotalRecords(model);
+        return (new GridDataProviderResult<DoctorModel> { Data = list, TotalCount = total });
+    }
+}

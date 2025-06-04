@@ -1,0 +1,149 @@
+﻿@page "/booking-grid"
+@using PatientPortalApp.Services
+@using PatientPortalApp.Data
+@using PatientPortalApp.Models
+@using System.ComponentModel.DataAnnotations
+
+@inherits LayoutComponentBase
+@inject IBookingService bookingService
+
+<h3>Bookings</h3>
+@if (list == null)
+{
+    <Spinner />
+}
+else
+{
+    <a class="expand-holder" style="cursor:pointer" @onclick="@(() => ToggleSearch())">@(@expand ? "Expand >" : "Collapse <")</a>
+    <Collapse @ref="search" Class="search-container">
+        <Card>
+            <CardBody>
+                <EditForm EditContext="@editContext" OnValidSubmit="HandleOnValidSubmit">
+                    <DataAnnotationsValidator />
+
+                    <div class="form-group row mb-3">
+                        <label class="col-md-2 col-form-label">First Name: </label>
+                        <div class="col-md-10">
+                            <InputText class="form-control" @bind-Value="searchForm.DoctorFirstName" Placeholder="Enter First Name" />
+                        </div>
+                    </div>
+
+                    <div class="form-group row mb-3">
+                        <label class="col-md-2 col-form-label">Last Name: </label>
+                        <div class="col-md-10">
+                            <InputText class="form-control" @bind-Value="searchForm.DoctorLastName" Placeholder="Enter Last Name" />
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-12 button-holder">
+                            <Button Type="ButtonType.Submit" Color="ButtonColor.Success" Class="me-2">Search</Button>
+                            <Button Type="ButtonType.Button" Color="ButtonColor.Secondary" Class="me-2" @onclick="ResetForm">Reset</Button>
+                        </div>
+                    </div>
+                </EditForm>
+            </CardBody>
+        </Card>
+    </Collapse>
+    <div class="grid-button-container">
+        <a href="booking-form">
+            <Icon Name="IconName.PlusSquare" />
+        </a>
+    </div>
+
+    <Grid @ref="bookingDataGridRef"
+          TItem="BookingModel"
+          Class="table table-hover table-bordered table-striped"
+          DataProvider="GridDataProvider"
+          AllowPaging="true"
+          PageSize="10"
+          AllowSorting="true"
+          Responsive="true">
+
+        @*
+    <GridColumn TItem="DoctorModel" HeaderText="Identifier" SortString="LocationIdentifier" SortKeySelector="item => item.UserIdentifier" PropertyName="UserIdentifier">
+    @context.UserIdentifier
+    </GridColumn> *@
+        <GridColumn TItem="BookingModel" HeaderText="Doctor's Name" SortString="DoctorName" SortKeySelector="item => item.DoctorName" PropertyName="DoctorName">
+            @context.DoctorName
+        </GridColumn>
+        <GridColumn TItem="BookingModel" HeaderText="Patient's Name" SortString="PatientName" SortKeySelector="item => item.PatientName" PropertyName="PatientName">
+            @context.PatientName
+        </GridColumn>
+        <GridColumn TItem="BookingModel" HeaderText="Medicare Number" SortString="MedicareNumber" SortKeySelector="item => item.MedicareNumber" PropertyName="MedicareNumber">
+            @context.MedicareNumber
+        </GridColumn>
+        <GridColumn TItem="BookingModel" HeaderText="Booking Date" SortString="BookingDate" SortKeySelector="item => item.BookingDate" PropertyName="BookingDate">
+            @context.BookingDate
+        </GridColumn>
+        <GridColumn TItem="BookingModel" HeaderText="Start time" SortString="StartTime" SortKeySelector="item => item.StartTime" PropertyName="StartTime">
+            @context.StartTime
+        </GridColumn>
+        <GridColumn TItem="BookingModel" HeaderText="End time" SortString="EndTime" SortKeySelector="item => item.EndTime" PropertyName="EndTime">
+            @context.EndTime
+        </GridColumn>
+        <GridColumn TItem="BookingModel" HeaderText="Enabled" SortString="IsDelete" SortKeySelector="item => item.IsDeleted" PropertyName="IsDeleted">
+            <HeaderContent>
+                Deleted
+            </HeaderContent>
+            <ChildContent>
+                <Switch @bind-Value="@context.IsDeleted" @onclick="@(() => Switch(context.BookingId))" />
+            </ChildContent>
+
+        </GridColumn>
+
+    </Grid>
+
+}
+@code {
+    private BookingSearchModel searchForm = new();
+    private EditContext? editContext;
+    private IEnumerable<BookingModel>? list = null;
+    private Modal modal = default!;
+    private BookingModel? rec;
+    private Collapse search = default!;
+    private bool expand = true;
+    private Grid<BookingModel> bookingDataGridRef = default!;
+    private int pagesize = 10;
+
+    protected override async Task OnInitializedAsync()
+    {
+        editContext = new EditContext(searchForm);
+        list = await bookingService.GetPage(new BookingSearchModel(), null!, 1, pagesize);
+    }
+
+    private async Task ToggleSearch()
+    {
+        await search.ToggleAsync();
+        expand = !expand;
+    }
+
+    private void ResetForm()
+    {
+        searchForm = new();
+        editContext = new EditContext(searchForm);
+
+    }
+
+    private async Task Switch(int id)
+    {
+        await bookingService.Switch(id);
+    }
+
+    public async Task HandleOnValidSubmit()
+    {
+        await bookingDataGridRef.RefreshDataAsync();
+    }
+
+    private async Task<GridDataProviderResult<BookingModel>> GridDataProvider(GridDataProviderRequest<BookingModel> request)
+    {
+        BookingSearchModel model = new BookingSearchModel()
+            {
+                DoctorFirstName = searchForm.DoctorFirstName?.ToLower(),
+                DoctorLastName = searchForm.DoctorLastName?.ToLower(),
+            };
+        list = await bookingService.GetPage(model, request.Sorting, request.PageNumber, request.PageSize);
+        int total = await bookingService.GetTotalRecords(model);
+        return (new GridDataProviderResult<BookingModel> { Data = list, TotalCount = total });
+    }
+}
